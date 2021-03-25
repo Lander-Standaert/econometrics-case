@@ -186,9 +186,12 @@ stargazer(linreg,
   df2 = data.frame(gdp, trade, area, pop)
   df2_sorted = df2[order(df2$trade),]
   df2_sorted
-  model_no_order= lm(gdp~trade+area+pop)
-  model_order = lm(df2_sorted$gdp~df2_sorted$trade+df2_sorted$area+df2_sorted$pop)
-  stargazer(model_no_order, model_order, type ="text")
+  model_no_order = lm(gdp ~ trade + area + pop)
+  model_order = lm(df2_sorted$gdp ~ df2_sorted$trade + df2_sorted$area +
+                     df2_sorted$pop)
+  model_order_func = lm(df2_sorted$gdp ~ df2_sorted$trade + df2_sorted$area +
+                          df2_sorted$pop + df2_sorted$pop/df2_sorted$area + I(df2_sorted$trade ^2) )
+  stargazer(model_no_order, model_order,model_order_func, type ="text")
   
   #testing order on data
   
@@ -213,10 +216,14 @@ stargazer(linreg,
 
   residuals_model_no_order = model_no_order$residuals
   residuals_model_order = model_order$residuals
+  residuals_model_order_func = model_order_func$residuals
   
-  par(mfrow=c(1,2))
+  
+  par(mfrow=c(1,3))
   plot(residuals_model_no_order, type = "l", ylim = c(-2.5, 2.5), xlab ="RESIDUALS: NO ORDER")
   plot(residuals_model_order, type = "l", ylim = c(-2.5, 2.5), xlab ="RESIDUALS: ORDER")
+  plot(residuals_model_order_func, type = "l", ylim = c(-2.5, 2.5), xlab ="RESIDUALS: ORDER FUNC")
+  
   
   par(mfrow=c(2,2))
   plot(model_no_order$fitted.values, studres(model_no_order), xlab = "OUTLIER: NO ORDER")
@@ -228,40 +235,46 @@ stargazer(linreg,
 # Durbin Watson D test
   DW_no_order = dwtest(model_no_order)
   DW_order = dwtest(model_order)
+  DW_order_func = dwtest(model_order_func)
   
   DW_summary_no_order = c(DW_no_order$statistic, DW_no_order$p.value)
   DW_summary_order = c(DW_order$statistic, DW_order$p.value)
+  DW_summary_order_func = c(DW_order_func$statistic, DW_order_func$p.value)
+  
   
   names(DW_summary_no_order) = c("Test-statistic", "P-value")
   names(DW_summary_order) = c("Test-statistic", "P-value")
+  names(DW_summary_order_func) = c("Test-statistic", "P-value")
+  
 
-  stargazer(DW_summary_no_order, type = "text")
-  stargazer(DW_summary_order, type = "text")               #there is auto correlation
+  stargazer(DW_summary_no_order, type = "text")              #there is auto correlation
+  stargazer(DW_summary_order, type = "text")                 #there is less auto correlation
+  stargazer(DW_summary_order_func, type = "text")            #there is less auto correlation. effect of interaction term, higher powers is minimal
 
 #ramsey test
   resettest(model_no_order, power = 2:3, type = "fitted")  #P is high => NOT reject null hypthesis. Conclusion: no specification error
   resettest(model_order, power = 2:3, type = "fitted")     #same result: sorting no result
-
+  resettest(model_order_func, power = 2:3, type = "fitted")     #same conclusion: P is very high
+  
   
 # LM test
   lagrange_test_no_order = lm(residuals_model_no_order ~ trade + I(trade ^ 2) + I(trade ^ 3))
-  lagrange_test_order = lm(residuals_model_order ~ sort(df2_sorted$trade) + I(sort(df2_sorted$trade) ^ 2) + I(sort(df2_sorted$trade) ^3))
+  lagrange_test_order = lm(residuals_model_order ~ df2_sorted$trade + I(df2_sorted$trade ^ 2) + I(df2_sorted$trade ^3) + df2_sorted$area + I(df2_sorted$area^2) + I(df2_sorted$area^3) + df2_sorted$pop + I(df2_sorted$pop^2) + I(df2_sorted$pop^3))
   
   stargazer(lagrange_test_no_order,lagrange_test_order, type = "text", style = "all")
-  stargazer(lagrange_test_order, type = "text", style = "all")
   
   number_of_observations = 150
   
   LM_test_no_order = number_of_observations * summary(lagrange_test_no_order)$r.squared
   LM_test_order = number_of_observations * summary(lagrange_test_order)$r.squared
   
-  LM_summary_no_order  = c(LM_test_no_order, pchisq(LM_test_no_order, df = 2, lower.tail = FALSE))        #unsure about df=2
-  LM_summary_order = c(LM_test_order, pchisq(LM_test_order, df = 2, lower.tail = FALSE))                  #unsure about df=2
+  LM_summary_no_order  = c(LM_test_no_order, pchisq(LM_test_no_order, df = 3, lower.tail = FALSE))        #unsure about df=3    Same as df from F stat?
+  LM_summary_order = c(LM_test_order, pchisq(LM_test_order, df = 9, lower.tail = FALSE))                  #unsure about df=9
   
   names(LM_summary_no_order ) = c("Test-statistic", "P-value")
   names(LM_summary_order ) = c("Test-statistic", "P-value")
   
-  stargazer(LM_summary_no_order , type = "text")   #H0: higher power is irrelevant => p= 0.187: no specification
+  stargazer(LM_summary_no_order , type = "text")   #H0: higher power is irrelevant => p= 0.334: no specification
   stargazer(LM_summary_order , type = "text")     
 
 #chi squared
