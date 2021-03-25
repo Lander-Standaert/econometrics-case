@@ -81,6 +81,7 @@ library(orcutt)   ## Cochrane-Orcutt EGLS
 library(nlme)     ## Linear models with autocorrelated error terms
 library(openxlsx) ## To read an excel xlsx data file
 library(EconometricsUGent)  ## Additional functions
+library(MASS)     ##implement studres
 
 
 ####################################################################
@@ -182,16 +183,47 @@ stargazer(linreg,
 
 
 #model selection
-  model_no_order= lm(gdp~area+pop+trade)
-  model_order = lm(gdp~ sort(area+pop+trade))
+  df2 = data.frame(gdp, trade, area, pop)
+  df2_sorted = df2[order(df2$trade),]
+  df2_sorted
+  model_no_order= lm(gdp~trade+area+pop)
+  model_order = lm(df2_sorted$gdp~df2_sorted$trade+df2_sorted$area+df2_sorted$pop)
+  stargazer(model_no_order, model_order, type ="text")
   
+  #testing order on data
+  
+  df1 = data.frame(trade,gdp)
+  model_basic_no_order = lm(gdp~trade)
+  model_sorted = df1[order(df1$trade),]
+  model_basic_order = lm(model_sorted$gdp~model_sorted$trade)
+  
+  summary(model_basic_no_order)
+  summary(model_basic_order)
+  
+  stargazer(model_basic_no_order,model_basic_order, type ="text")
+  
+  par(mfrow=c(2,2))
+  
+  plot(model_basic_no_order$fitted.values, studres(model_basic_no_order), xlab = "OUTLIER: NO ORDER")
+  plot(hatvalues(model_basic_no_order), xlab ="LEVERAGE: NO ORDER")
+  plot(model_basic_order$fitted.values, studres(model_basic_order), xlab ="OUTLIER: ORDER")
+  plot(hatvalues(model_basic_order), xlab ="LEVERAGE: ORDER")
+  
+     #conclusion: although summary of 2 models is the same, leverage plots are different
+
   residuals_model_no_order = model_no_order$residuals
   residuals_model_order = model_order$residuals
   
-  par(mar = c(2, 2, 0, 2))
+  par(mfrow=c(1,2))
+  plot(residuals_model_no_order, type = "l", ylim = c(-2.5, 2.5), xlab ="RESIDUALS: NO ORDER")
+  plot(residuals_model_order, type = "l", ylim = c(-2.5, 2.5), xlab ="RESIDUALS: ORDER")
   
-  plot(residuals_model_no_order, type = "l", ylim = c(-2.5, 2.5))
-  plot(residuals_model_order, type = "l", ylim = c(-2.5, 2.5))
+  par(mfrow=c(2,2))
+  plot(model_no_order$fitted.values, studres(model_no_order), xlab = "OUTLIER: NO ORDER")
+  plot(hatvalues(model_no_order), xlab ="LEVERAGE: NO ORDER")
+  plot(model_order$fitted.values, studres(model_order), xlab ="OUTLIER: ORDER")
+  plot(hatvalues(model_order), xlab ="LEVERAGE: ORDER")
+  
 
 # Durbin Watson D test
   DW_no_order = dwtest(model_no_order)
@@ -208,15 +240,15 @@ stargazer(linreg,
 
 #ramsey test
   resettest(model_no_order, power = 2:3, type = "fitted")  #P is high => NOT reject null hypthesis. Conclusion: no specification error
-  resettest(model_order, power = 2:3, type = "fitted")     #P is 0 =>  reject null hypthesis. Conclusion: specification error
+  resettest(model_order, power = 2:3, type = "fitted")     #same result: sorting no result
 
   
 # LM test
-  lagrange_test_no_order = lm(res ~ trade + I(trade ^ 2) + I(trade ^ 3))
-  lagrange_test_order = lm(res_order ~ sort(trade) + I(sort(trade) ^ 2) + I(sort(trade) ^3))
+  lagrange_test_no_order = lm(residuals_model_no_order ~ trade + I(trade ^ 2) + I(trade ^ 3))
+  lagrange_test_order = lm(residuals_model_order ~ sort(df2_sorted$trade) + I(sort(df2_sorted$trade) ^ 2) + I(sort(df2_sorted$trade) ^3))
   
-  stargazer(lagrange_test_no_order, type = "text", style = "all")
-  stargazer(vlagrange_test_order, type = "text", style = "all")
+  stargazer(lagrange_test_no_order,lagrange_test_order, type = "text", style = "all")
+  stargazer(lagrange_test_order, type = "text", style = "all")
   
   number_of_observations = 150
   
@@ -229,18 +261,18 @@ stargazer(linreg,
   names(LM_summary_no_order ) = c("Test-statistic", "P-value")
   names(LM_summary_order ) = c("Test-statistic", "P-value")
   
-  stargazer(LM_summary_no_order , type = "text")   #H0: higher power is irrelevant => p= 0.817: no specification
-  stargazer(LM_summary_order , type = "text")      # p = 0: specificiaton error
+  stargazer(LM_summary_no_order , type = "text")   #H0: higher power is irrelevant => p= 0.187: no specification
+  stargazer(LM_summary_order , type = "text")     
 
 #chi squared
   model_no_order_test = lm(gdp[1:110] ~ trade[1:110])                # OLS on first 110 obs
-  model_order_test = lm(gdp[1:110] ~ sort(trade[1:110])+sort(area[1:110])+ sort(pop[1:110]))             # OLS on first 110 obs
+  model_order_test = lm(df2_sorted$gdp[1:110] ~ df2_sorted$trade[1:110]+df2_sorted$area[1:110]+ df2_sorted$pop[1:110])          # OLS on first 110 obs
   
   beta_no_order = model_no_order_test$coefficients
   beta_order = model_order_test$coefficients
   
   residual_no_order_train = gdp[111:150] - beta_no_order[1] - beta_no_order[2] * trade[111:150] # error terms over holdout sample (last 49 obs)
-  residual_order_train = gdp[111:150] - beta_order[1] - beta_order[2] * sort(trade[111:150]) - beta_order[3] * sort(area[1:110]) - beta_order[4] * sort(pop[1:110]) # error terms over holdout sample (last 49 obs)
+  residual_order_train = df2_sorted$gdp[111:150] - beta_order[1] - beta_order[2] * df2_sorted$trade[111:150] - beta_order[3] * df2_sorted$area[111:150] - beta_order[4] * df2_sorted$pop[111:150] # error terms over holdout sample (last 49 obs)
   
   chi2_no_order = sum(residual_no_order_train ^ 2) / (sigma(model_no_order_test) ^ 2)
   chi2_order = sum(residual_order_train ^ 2) / (sigma(model_order_test) ^ 2)
@@ -252,5 +284,5 @@ stargazer(linreg,
   names(chi2_summary_order) = c("Test-statistic", "P-value")
   
   stargazer(chi2_summary_no_order, type = "text")              #P = 0.138, correct model
-  stargazer(chi2_summary_order, type = "text")                 #P = 0, wrong model             
+  stargazer(chi2_summary_order, type = "text")                 #P = 0.179, correct model             
   
