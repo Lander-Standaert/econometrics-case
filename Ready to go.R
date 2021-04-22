@@ -251,6 +251,6 @@ stargazerRegression(CO,fileName = "Cochrane_Orcutt_EGLS",fileDirectory = output)
 ###################################################################
 ## Newey-West (HAC) consistent standard errors 
 ###################################################################
-HACSE = robust(linear_model,type = "HAC",fileName = "HAC",fileDirectory = output) # saves results to word file
+HACSE = robust(linreg2,type = "HAC",fileName = "HAC",fileDirectory = output) # saves results to word file
 
 
