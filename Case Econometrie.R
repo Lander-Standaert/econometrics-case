@@ -419,3 +419,28 @@ chi2 = sum(res_holdout^2)/(sigma(nonlinear_model_reduced)^2)
 chi2_summary=c(chi2,pchisq(chi2,df=24,lower.tail=FALSE))
 names(chi2_summary)=c("Test-statistic","P-value")
 stargazer(chi2_summary,type="text")
+
+###################################################################
+## Endogeneity
+###################################################################
+
+############################################
+## 2SLS estimation
+############################################
+reg_IV=ivreg(gdp~trade|pop+area+landlocked+neighbors)
+stargazer(reg_IV,type="text",style="all")
+stargazerRegression(reg_IV, fileDirectory = output, fileName = "2SLS")
+
+############################################
+## First stage OLS estimation
+############################################
+reg_1stage=lm(trade~pop+area+landlocked+neighbors)
+stargazer(reg_1stage,type="text",style="all")
+stargazerRegression(reg_1stage, fileDirectory = output, fileName = "FirstStageOLS")
+
+############################################
+## Hausman test
+############################################
+reg_Haus=lm(gdp~trade+reg_1stage$residuals)
+stargazer(reg_Haus,type="text",style="all")
+stargazerRegression(reg_Haus, fileDirectory = output, fileName = "HausmanTest")
